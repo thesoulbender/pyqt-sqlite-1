@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 PyQt SQLite
 =============
 
@@ -42,9 +41,3 @@ SQL Queries can be executed, if it selects then the result is shown in the table
 ![Screenshot](screenshots/qury.png)
 
 
-
-
-=======
-# pyqt-sqlite
-SqLite Database Management Software implemented wşth Python3.4 and PyQt5.7 for teaching/learning purpuses
->>>>>>> 0e485336208599832bc559370b465d592d2f4388
