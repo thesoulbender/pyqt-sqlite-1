@@ -34,10 +34,13 @@ You can update, insert and/or remove data:
 ![Screenshot](screenshots/table.png)
 
 
+
+
+
 Execute SQL Query
 ------------------
 SQL Queries can be executed, if it selects then the result is shown in the table:
 
 ![Screenshot](screenshots/qury.png)
 
-
+You can save your query as a view by pressing ![save view](icons/sc_dbnewviewsql.png) icon.

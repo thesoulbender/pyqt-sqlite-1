@@ -3,7 +3,7 @@
 # This software is distributed under the GNU Lesser General Public License (https://www.gnu.org/licenses/lgpl-3.0.en.html)
 # WARNING: This is not a software to be used in production. I write this software for teaching purposes.  
 # TO DO: There lots of things to be done. This is experimental software and will never finish. But I will do the followings first:
-# 1) Save SQL Query as view
+# 1) Save SQL Query as view - done 2017/04/11
 # 2) Modify Table is not implemented. Will implement whenever I find time
 # 3) Editing SQLite parameters
 # 4) Creating Index
@@ -25,7 +25,7 @@ from functools import partial
 
 app = QtWidgets.QApplication(sys.argv)
 
-
+__appname__='PyQt SqLite Database Browser'
 
 class ModifyTableDialog(QtWidgets.QDialog, uic.loadUiType('modify_table_dialog.ui')[0]):
     def __init__(self, parent=None, *args):
@@ -207,9 +207,8 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
         
         self.recent_files=self.settings.value('recent_files',[])
         self.update_recent_files()
-        
 
-        self.queryTableView.setModel(QtSql.QSqlQueryModel())
+        
 
         
     def setTitle(self, title=None):
@@ -237,7 +236,7 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
                                                      self.selectedTable[0]
                                                    ))
         if result==QtWidgets.QMessageBox.Yes:
-            self.current_database.exec("DROP TABLE `%s`" % self.selectedTable[1])
+            self.current_database.exec("DROP %s `%s`" % (self.selectedTable[0], self.selectedTable[1]))
             if not self.error_check(self.current_database):
                 self.update_tables_table()
         
@@ -271,6 +270,7 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
                 tables.append(q.value(0))
             
             tab_par = QtGui.QStandardItem('%ss (%d)' % (typ.title(),len(tables)))
+            
             for tb in tables:
                 if typ=='table': c_icon="sc_inserttable.png"
                 else: c_icon="sc_dbviewtablenames.png"
@@ -302,9 +302,7 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
                 
             self.tree_model.appendRow(tab_par)
 
-        
-        
-        
+
     def error_check(self, model):
         
         error = model.lastError()
@@ -316,9 +314,9 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
     
     @QtCore.pyqtSlot()    
     def on_queryExecButton_pressed(self):
+        self.queryTableView.setModel(QtSql.QSqlQueryModel())
         query = self.queryTextEdit.toPlainText()
         model = self.queryTableView.model()
-        model.clear()
         model.setQuery(query)
         self.error_check(model)
 
@@ -326,15 +324,15 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
         
     @QtCore.pyqtSlot(str)    
     def on_comboBox_currentIndexChanged(self,tbl_name):
-        model = QtSql.QSqlTableModel()
-        model.setTable('"'+tbl_name+'"')
-        model.setEditStrategy(QtSql.QSqlTableModel.OnFieldChange)
-        model.select()
-        
-        self.error_check(model)
-        self.tableView.setModel(model)
+        if tbl_name:
+            model = QtSql.QSqlTableModel()
+            model.setTable('"'+tbl_name+'"')
+            model.setEditStrategy(QtSql.QSqlTableModel.OnFieldChange)
+            model.select()
 
-    
+            self.error_check(model)
+            self.tableView.setModel(model)
+
     def show_warning(self, text):
         QtWidgets.QMessageBox.warning(self, "Info", "Could not execute query. Error message from database engine is:\n"+ text)
     
@@ -350,30 +348,17 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
     @QtCore.pyqtSlot()    
     def on_reloadTableButton_pressed(self):
         self.tableView.model().select()
-        
-        
+
     @QtCore.pyqtSlot()    
     def on_deleteRecordButton_pressed(self):
         model = self.tableView.model()
         model.removeRow(self.tableView.currentIndex().row())
         model.select()
-                 
-        
-        
+
     @QtCore.pyqtSlot()
     def on_actionClose_triggered(self):
-        if self.current_database:
-            if self.current_database.isOpen():
-                self.tree_model.clear()
-                self.comboBox.clear()
-                tbm=self.tableView.model()
-                tbm.clear()
-                
-                self.current_database.close()
-                self.setTitle()
-                self.commandLinkButton.setEnabled(False)
-                self.actionClose.setEnabled(False)     
-        
+        self.closeDatabase()
+
     @QtCore.pyqtSlot()
     def on_actionExit_triggered(self):
         self.close()
@@ -384,15 +369,10 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
         save_file_dialog=QtWidgets.QFileDialog.getSaveFileName(self, "Name of new database", self.work_directory)
         if save_file_dialog[0]:
             self.loadDatabase(save_file_dialog[0])
-      
-      
-          
-        
+
+
     @QtCore.pyqtSlot()
     def on_actionOpen_triggered(self):
-        if self.current_database:
-            if self.current_database.isOpen():
-                self.current_database.close()
         self.fileDialog = QtWidgets.QFileDialog(self)
         self.fileDialog.setDirectory(self.work_directory)
         
@@ -400,8 +380,45 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
        
         if result[0]:
             self.loadDatabase(result[0])
+    
+    @QtCore.pyqtSlot()
+    def on_saveQueryAsView_pressed(self):
+        
+        model = self.queryTableView.model()
+        
+        if model:
+            if model.rowCount():
+                view_name, result = QtWidgets.QInputDialog.getText(self, __appname__, 'Enter vieww name:')
+                if result:
+                    query = self.queryTextEdit.toPlainText()            
+                    query = 'CREATE VIEW {0} AS\n{1}'.format(view_name, query)
+                    if not self.execute_query(query):
+                        self.update_tables_table()
+        
+    def closeDatabase(self):
+        if self.current_database:
+            if self.current_database.isOpen():
+                self.tree_model.clear()
+                self.comboBox.clear()
+                tbm=self.tableView.model()
+                tbm.clear()
+                
+                self.current_database.close()
+                self.setTitle()
+                self.commandLinkButton.setEnabled(False)
+                self.actionClose.setEnabled(False)
+            print('Clearing "Execute SQL Widgets"')
+            #clear "Execute SQL Widgets"
+            self.queryTextEdit.clear()
+            tableModel=self.queryTableView.model()
+            if tableModel:
+                tableModel.clear()
+            
+            self.queryTableView.setModel(None)
+            self.queryResultText.clear() 
 
     def loadDatabase(self, db_file, *args):
+        self.closeDatabase()
         self.tree_model.removeRows(0, self.tree_model.rowCount())
         self.work_directory=os.path.dirname(db_file)
         self.current_database_file=os.path.basename(db_file)
@@ -424,16 +441,16 @@ class MainWindow(QtWidgets.QMainWindow, uic.loadUiType('mainwindow.ui')[0]):
         for i, rc in enumerate(self.recent_files):
             recent_file_action=QtWidgets.QAction('&%d %s' % (i+1, rc), self, triggered=partial(self.loadDatabase, rc))
             self.menuOpen_Recent.addAction(recent_file_action)
-            
-            
+
     def execute_query(self, query):
         self.current_database.exec(query)
-        
+
         return self.error_check(self.current_database)
 
     def closeEvent(self, event):
         
         self.settings.setValue('recent_files', self.recent_files)
+        self.closeDatabase()
 
 main = MainWindow()
 main.show()
